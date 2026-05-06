@@ -9,13 +9,13 @@ import {getMessaging, getToken as getFCMTOken, onMessage} from "firebase/messagi
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAr_gpTVwymWmPT0-Uhkd-no8RqaTo6nNE",
-  authDomain: "medi-routines.firebaseapp.com",
-  projectId: "medi-routines",
-  storageBucket: "medi-routines.firebasestorage.app",
-  messagingSenderId: "765745319502",
-  appId: "1:765745319502:web:27ee85ccc032f0dea67d1f",
-  measurementId: "G-WJSXXD2YXX"
+  apiKey: "AIzaSyCcCaL_eNp3GALc9_pWkWM78Ibjq9AYjII",
+  authDomain: "mediroutines-1967f.firebaseapp.com",
+  projectId: "mediroutines-1967f",
+  storageBucket: "mediroutines-1967f.firebasestorage.app",
+  messagingSenderId: "231176824597",
+  appId: "1:231176824597:web:93c164dbc240240f2aeb1c",
+  measurementId: "G-Z0Y321VL0F"
 };
 
 // Initialize Firebase

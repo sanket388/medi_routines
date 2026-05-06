@@ -59,11 +59,30 @@ Only port 80 is exposed publicly. Backend, frontend, and database communicate in
 
 ## Dev Environment Setup
 
-The dev environment is fully Dockerized — no need to install Node, MongoDB, or any other dependencies locally. The only setup required is creating the environment files.
+The dev environment is fully Dockerized — no need to install Node, MongoDB, or any other dependencies locally. The only setup required is creating the environment files, setting up firebase for push notifs:
 
-**Backend** — create `medi_routines_backend/.env`
+### 1. Environment Files
 
-**Frontend** — create `medi_routines_frontend/.env`
+**Backend** — create `medi_routines_backend/.env`:
+```dotenv
+JWT_SECRET=any-random-string-for-local-dev
+FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/medi_routines_backend/firebase-adminsdk.json
+```
+
+**Frontend** — create `medi_routines_frontend/.env`:
+```dotenv
+VITE_MEDI_ROUTINES_SERVER_URL=http://localhost:8000
+VITE_TIMEZONES_SERVER_URL=https://timeapi.io
+```
+
+### 2. Firebase service account key
+
+Obtain the Firebase Admin SDK service account JSON file from the Firebase Console:
+> Firebase Console → Project Settings → Service Accounts → Generate New Private Key
+ 
+Place it at `medi_routines_backend/firebase-adminsdk.json`.
+ 
+> Note: This file is gitignored and dockerignored. Never commit it.
 
 ### Start Dev Server
 ```bash
@@ -81,7 +100,7 @@ docker compose -f compose.test.yml -p test up --exit-code-from backend --build
 
 ### Current Setup
 
-The app is deployed on a single cloud VM (Azure). Refer to the prod architecture above — all services run as Docker containers on the VM, with Nginx as the single public entry point on port 80.
+The app is deployed on a single cloud VM (Azure). Refer to the prod architecture above — all services run as Docker containers on the VM, with Nginx as the single public entry point on port 80 handling SSL termination and routing.
 
 ### First Time / One-Time Setup
 
@@ -111,15 +130,34 @@ exit
 **5. Create `.env.prod` locally** at `medi_routines_backend/.env.prod`:
 ```dotenv
 JWT_SECRET=
-FIREBASE_SERVICE_ACCOUNT_KEY_PATH=
+FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/medi_routines_backend/firebase-adminsdk.json
 ```
 
-**6. Copy `.env.prod` to the VM**
+**6. Copy secrets to the VM**
 ```bash
+# copy backend env file
 scp ./medi_routines_backend/.env.prod azureuser@<vm-ip>:~/medi_routines/medi_routines_backend/.env.prod
+ 
+# copy firebase service account key
+scp ./medi_routines_backend/firebase-adminsdk.json azureuser@<vm-ip>:~/medi_routines/medi_routines_backend/firebase-adminsdk.json
 ```
 
-**7. SSH back in and start the server**
+**7. Set up custom domain and SSL**
+ 
+Point your domain's A record to `<vm-ip>`, then SSH into the VM and run:
+ 
+```bash
+# stop containers to free port 80
+docker compose -f compose.prod.yml -p prod down
+ 
+# obtain SSL certificate
+sudo apt install certbot -y
+sudo certbot certonly --standalone -d <your-domain>
+ 
+# make sure ports 80 and 443 are open in your cloud provider's firewall
+```
+
+**8. SSH back in and start the server**
 ```bash
 ssh azureuser@<vm-ip>
 cd medi_routines
@@ -128,8 +166,26 @@ docker compose -f compose.prod.yml -p prod up -d --build
 
 ---
 
+### CI/CD Setup (one time, per repo)
+ 
+Tests run automatically on every PR to `main`. Deployment runs automatically on every merge to `main`.
+ 
+Add the following in GitHub → repo → Settings:
+ 
+**Secrets** (Settings → Secrets and variables → Actions → Secrets):
+| Name | Value |
+|---|---|
+| `VM_SSH_PRIVATE_KEY` | Private SSH key whose public key is authorized on the VM |
+| `VM_IP` | Public IP of the VM |
+| `VM_USER` | SSH username (e.g. `azureuser`) |
+ 
+---
+
 ### Subsequent Deployments via CI/CD Setup
 
 - When a pull request is created on main, tests are run via `.github/workflows/ci.yml`.
 - Only if the tests pass, is the merge allowed to `main`.
 - After merged to `main`, it is deployed to a VM in the cloud via `.github/workflows/cd.yml`.
+
+### Manual deploy fallback
+- In case need to manually deploy, run: `VM_USER=<username> VM_IP=<ip> ./deploy.sh`

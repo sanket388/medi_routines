@@ -33,6 +33,9 @@ services:
       - NODE_ENV=production
     env_file:
       - ./medi_routines_backend/.env.prod
+    volumes:
+    # firebase admin sdk secrets mounted via volume
+      - ./medi_routines_backend/firebase-adminsdk.json:/medi_routines_backend/firebase-adminsdk.json:ro
     depends_on:
       - mongodb
 
