@@ -1,0 +1,33 @@
+name: CD - Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy to Azure VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VM_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.VM_USER }}@${{ secrets.VM_IP }} << 'EOF'
+            set -e
+            cd ~/medi_routines
+            echo "📦 Pulling latest code..."
+            git pull origin main
+            echo "🐳 Rebuilding and restarting containers..."
+            docker compose -f compose.prod.yml -p prod up -d --build
+            echo "🧹 Cleaning up unused images..."
+            docker image prune -f
+          EOF

@@ -15,9 +15,13 @@ CMD ["npm", "run", "dev", "--", "--host"]
 
 # builder stage, just builds for production
 FROM base AS builder
+ARG VITE_MEDI_ROUTINES_SERVER_URL
+ARG VITE_TIMEZONES_SERVER_URL=https://timeapi.io
+ENV VITE_MEDI_ROUTINES_SERVER_URL=$VITE_MEDI_ROUTINES_SERVER_URL
+ENV VITE_TIMEZONES_SERVER_URL=$VITE_TIMEZONES_SERVER_URL
 RUN npm run build
 
-# final production stage for client, just puts built html, css, js in a apache server
-FROM httpd:2.4.66 AS final
-# copy built files
-COPY --from=builder /medi_routines_frontend/dist/ /usr/local/apache2/htdocs/
+# final production stage
+FROM nginx:1.27-alpine AS final
+COPY --from=builder /medi_routines_frontend/dist/ /usr/share/nginx/html/
+COPY nginx.conf /etc/nginx/conf.d/default.conf

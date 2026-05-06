@@ -1,6 +1,7 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
+const withFixedDate = require('../test-helpers/withFixedDate');
 
 let replSet;
 let app;
@@ -131,7 +132,9 @@ describe('Routine Routes', () => {
         expect(Array.isArray(routineRes.body.routine.medicines)).toBe(true);
         expect(routineRes.body.routine.medicines.length).toBe(1);
         expect(routineRes.body.routine.medicines[0]).toHaveProperty('medicineType', 'UserDefinedMedicine');
-        expect(routineRes.body.routine.medicines[0]).toHaveProperty('medicine', medId.toString());
+        expect(routineRes.body.routine.medicines[0]).toHaveProperty('medicine');
+        expect(routineRes.body.routine.medicines[0].medicine).toHaveProperty('_id', medId.toString());
+        expect(routineRes.body.routine.medicines[0].medicine).toHaveProperty('name', 'Test Med');
         expect(routineRes.body.routine.medicines[0]).toHaveProperty('schedule');
         expect(Array.isArray(routineRes.body.routine.medicines[0].schedule)).toBe(true);
         expect(routineRes.body.routine.medicines[0].schedule.length).toBe(1);
@@ -287,148 +290,158 @@ describe('Routine Routes', () => {
     });
 
     it('should get upcoming routines for authenticated user (all scheduled times if none taken)', async () => {
-        // Create Cough Syrup and Goitre Med
-        const coughSyrupRes = await request(app)
-            .post('/api/user-defined-medicine')
-            .set('Authorization', `Bearer ${token}`)
-            .send({ name: "Cough Syrup" });
-        const coughSyrupId = coughSyrupRes.body.userDefinedMedicine.id;
 
-        const goitreMedRes = await request(app)
-            .post('/api/user-defined-medicine')
-            .set('Authorization', `Bearer ${token}`)
-            .send({ name: "Goitre Med" });
-        const goitreMedId = goitreMedRes.body.userDefinedMedicine.id;
+        // run for a Wednesday
+        await withFixedDate('2024-01-03', async ()=>
+        {
 
-        // Create Throat Infection routine (Cough Syrup every day, all slots)
-        await request(app)
-            .post('/api/routine')
-            .set('Authorization', `Bearer ${token}`)
-            .send({
-                name: "Throat Infection",
-                medicines: [
-                    {
-                        medicineType: "UserDefinedMedicine",
-                        medicine: coughSyrupId,
-                        schedule: [
-                            { day: "Monday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Tuesday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Wednesday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Thursday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Friday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Saturday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Sunday", times: ["Morning", "Afternoon", "Evening"] }
-                        ]
-                    }
-                ]
-            });
+            // Create Cough Syrup and Goitre Med
+            const coughSyrupRes = await request(app)
+                .post('/api/user-defined-medicine')
+                .set('Authorization', `Bearer ${token}`)
+                .send({ name: "Cough Syrup" });
+            const coughSyrupId = coughSyrupRes.body.userDefinedMedicine.id;
+    
+            const goitreMedRes = await request(app)
+                .post('/api/user-defined-medicine')
+                .set('Authorization', `Bearer ${token}`)
+                .send({ name: "Goitre Med" });
+            const goitreMedId = goitreMedRes.body.userDefinedMedicine.id;
+    
+            // Create Throat Infection routine (Cough Syrup every day, all slots)
+            await request(app)
+                .post('/api/routine')
+                .set('Authorization', `Bearer ${token}`)
+                .send({
+                    name: "Throat Infection",
+                    medicines: [
+                        {
+                            medicineType: "UserDefinedMedicine",
+                            medicine: coughSyrupId,
+                            schedule: [
+                                { day: "Monday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Tuesday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Wednesday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Thursday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Friday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Saturday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Sunday", times: ["Morning", "Afternoon", "Evening"] }
+                            ]
+                        }
+                    ]
+                });
+    
+            // Create Goitre routine (only Sat/Sun morning)
+            await request(app)
+                .post('/api/routine')
+                .set('Authorization', `Bearer ${token}`)
+                .send({
+                    name: "Goitre",
+                    medicines: [
+                        {
+                            medicineType: "UserDefinedMedicine",
+                            medicine: goitreMedId,
+                            schedule: [
+                                { day: "Saturday", times: ["Morning"] },
+                                { day: "Sunday", times: ["Morning"] }
+                            ]
+                        }
+                    ]
+                });
+    
+            // Get upcoming routines
+            const res = await request(app)
+                .get('/api/routine/upcoming')
+                .set('Authorization', `Bearer ${token}`);
+            expect(res.statusCode).toBe(200);
+            expect(Array.isArray(res.body.upcomingRoutines)).toBe(true);
+    
+            // Should include Throat Infection for Morning, Afternoon, Evening (Cough Syrup)
+            const routines = res.body.upcomingRoutines;
+            const throatRoutines = routines.filter(r => r.routineName === "Throat Infection");
+            const times = throatRoutines.map(r => r.localTime);
+            expect(times).toEqual(expect.arrayContaining(["Morning", "Afternoon", "Evening"]));
+            // Should not include Goitre
+            const hasGoitre = routines.some(r => r.routineName === "Goitre");
+            expect(hasGoitre).toBe(false);
+            console.log(JSON.stringify(res.body, null, 2));
+        })
 
-        // Create Goitre routine (only Sat/Sun morning)
-        await request(app)
-            .post('/api/routine')
-            .set('Authorization', `Bearer ${token}`)
-            .send({
-                name: "Goitre",
-                medicines: [
-                    {
-                        medicineType: "UserDefinedMedicine",
-                        medicine: goitreMedId,
-                        schedule: [
-                            { day: "Saturday", times: ["Morning"] },
-                            { day: "Sunday", times: ["Morning"] }
-                        ]
-                    }
-                ]
-            });
-
-        // Assume today is Wednesday
-        const today = "Wednesday";
-
-        // Get upcoming routines
-        const res = await request(app)
-            .get('/api/routine/upcoming')
-            .set('Authorization', `Bearer ${token}`);
-        expect(res.statusCode).toBe(200);
-        expect(Array.isArray(res.body.upcomingRoutines)).toBe(true);
-
-        // Should include Throat Infection for Morning, Afternoon, Evening (Cough Syrup)
-        const routines = res.body.upcomingRoutines;
-        const throatRoutines = routines.filter(r => r.routineName === "Throat Infection");
-        const times = throatRoutines.map(r => r.localTime);
-        expect(times).toEqual(expect.arrayContaining(["Morning", "Afternoon", "Evening"]));
-        // Should not include Goitre
-        const hasGoitre = routines.some(r => r.routineName === "Goitre");
-        expect(hasGoitre).toBe(false);
-        console.log(JSON.stringify(res.body, null, 2));
     });
 
     it('should get upcoming routines for authenticated user (exclude times already taken)', async () => {
-        // Create Cough Syrup
-        const coughSyrupRes = await request(app)
-            .post('/api/user-defined-medicine')
-            .set('Authorization', `Bearer ${token}`)
-            .send({ name: "Cough Syrup" });
-        const coughSyrupId = coughSyrupRes.body.userDefinedMedicine.id;
+        
+        // run for a Wednesday
+        await withFixedDate('2024-01-03', async ()=>
+        {
+            // Create Cough Syrup
+            const coughSyrupRes = await request(app)
+                .post('/api/user-defined-medicine')
+                .set('Authorization', `Bearer ${token}`)
+                .send({ name: "Cough Syrup" });
+            const coughSyrupId = coughSyrupRes.body.userDefinedMedicine.id;
+    
+            // Create Throat Infection routine (Cough Syrup every day, all slots)
+            const routineRes = await request(app)
+                .post('/api/routine')
+                .set('Authorization', `Bearer ${token}`)
+                .send({
+                    name: "Throat Infection",
+                    medicines: [
+                        {
+                            medicineType: "UserDefinedMedicine",
+                            medicine: coughSyrupId,
+                            schedule: [
+                                { day: "Monday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Tuesday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Wednesday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Thursday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Friday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Saturday", times: ["Morning", "Afternoon", "Evening"] },
+                                { day: "Sunday", times: ["Morning", "Afternoon", "Evening"] }
+                            ]
+                        }
+                    ]
+                });
+            const routineId = routineRes.body.routine.id;
+    
+            // Get routineMedicineId for Cough Syrup
+            const routinesRes = await request(app)
+                .get('/api/routine')
+                .set('Authorization', `Bearer ${token}`);
+            const throatRoutine = routinesRes.body.routines.find(r => r.name === "Throat Infection");
+            console.log(JSON.stringify(throatRoutine, null, 2));
+            const coughMed = throatRoutine.medicines.find(m => m.medicine.name === "Cough Syrup");
+    
+            // Mark as taken for "Morning"
+            const today = "Wednesday";
+            await request(app)
+                .post('/api/taken')
+                .set('Authorization', `Bearer ${token}`)
+                .send({
+                    routine: routineId,
+                    routineMedicine: coughMed._id,
+                    // date must be in DD/MM/YYYY format
+                    date: new Date().toLocaleDateString('en-GB'),
+                    day: today,
+                    time: "Morning"
+                });
+    
+            // Get upcoming routines
+            const res = await request(app)
+                .get('/api/routine/upcoming')
+                .set('Authorization', `Bearer ${token}`);
+            expect(res.statusCode).toBe(200);
+            expect(Array.isArray(res.body.upcomingRoutines)).toBe(true);
+    
+            // Should only include Afternoon and Evening for Cough Syrup
+            const routines = res.body.upcomingRoutines;
+            const throatRoutines = routines.filter(r => r.routineName === "Throat Infection");
+            const times = throatRoutines.map(r => r.localTime);
+            expect(times).toEqual(expect.arrayContaining(["Afternoon", "Evening"]));
+            expect(times).not.toContain("Morning");
+            console.log("should get upcoming routines for authenticated user (exclude times already taken)", JSON.stringify(res.body, null, 2));
+        })
 
-        // Create Throat Infection routine (Cough Syrup every day, all slots)
-        const routineRes = await request(app)
-            .post('/api/routine')
-            .set('Authorization', `Bearer ${token}`)
-            .send({
-                name: "Throat Infection",
-                medicines: [
-                    {
-                        medicineType: "UserDefinedMedicine",
-                        medicine: coughSyrupId,
-                        schedule: [
-                            { day: "Monday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Tuesday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Wednesday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Thursday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Friday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Saturday", times: ["Morning", "Afternoon", "Evening"] },
-                            { day: "Sunday", times: ["Morning", "Afternoon", "Evening"] }
-                        ]
-                    }
-                ]
-            });
-        const routineId = routineRes.body.routine.id;
-
-        // Get routineMedicineId for Cough Syrup
-        const routinesRes = await request(app)
-            .get('/api/routine')
-            .set('Authorization', `Bearer ${token}`);
-        const throatRoutine = routinesRes.body.routines.find(r => r.name === "Throat Infection");
-        console.log(JSON.stringify(throatRoutine, null, 2));
-        const coughMed = throatRoutine.medicines.find(m => m.medicine.name === "Cough Syrup");
-
-        // Mark as taken for "Morning"
-        const today = "Wednesday";
-        await request(app)
-            .post('/api/taken')
-            .set('Authorization', `Bearer ${token}`)
-            .send({
-                routine: routineId,
-                routineMedicine: coughMed._id,
-                // date must be in DD/MM/YYYY format
-                date: new Date().toLocaleDateString('en-GB'),
-                day: today,
-                time: "Morning"
-            });
-
-        // Get upcoming routines
-        const res = await request(app)
-            .get('/api/routine/upcoming')
-            .set('Authorization', `Bearer ${token}`);
-        expect(res.statusCode).toBe(200);
-        expect(Array.isArray(res.body.upcomingRoutines)).toBe(true);
-
-        // Should only include Afternoon and Evening for Cough Syrup
-        const routines = res.body.upcomingRoutines;
-        const throatRoutines = routines.filter(r => r.routineName === "Throat Infection");
-        const times = throatRoutines.map(r => r.localTime);
-        expect(times).toEqual(expect.arrayContaining(["Afternoon", "Evening"]));
-        expect(times).not.toContain("Morning");
-        console.log("should get upcoming routines for authenticated user (exclude times already taken)", JSON.stringify(res.body, null, 2));
     });
 });

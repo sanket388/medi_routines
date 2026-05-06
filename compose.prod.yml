@@ -1,0 +1,63 @@
+services:
+
+  nginx:
+    build:
+      context: ./medi_routines_nginx/
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+      - client
+
+  client:
+    build:
+      context: ./medi_routines_frontend/
+      target: final
+      args:
+        - VITE_MEDI_ROUTINES_SERVER_URL=
+        - VITE_TIMEZONES_SERVER_URL=https://timeapi.io
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./medi_routines_backend/
+      target: final
+    restart: unless-stopped
+    environment:
+      - MONGODB_CONNECTION=mongodb://mongodb:27017
+      - PORT=8000
+      - NODE_ENV=production
+    env_file:
+      - ./medi_routines_backend/.env.prod
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongodb/mongodb-community-server:8.0.21-ubuntu2204-slim
+    command: ["mongod", "--replSet", "rs0", "--port", "27017"]
+    restart: unless-stopped
+    volumes:
+      - medi_routines_db:/data/db
+
+  mongo-init:
+    image: mongodb/mongodb-community-server:8.0.21-ubuntu2204-slim
+    depends_on:
+      - mongodb
+    command: >
+      bash -lc '
+        until mongosh --host mongodb --port 27017 --quiet --eval "db.adminCommand(\"ping\").ok" | grep 1 >/dev/null; do
+          sleep 2
+        done;
+        mongosh --host mongodb --port 27017 --quiet --eval "
+          try { rs.status() }
+          catch (e) { rs.initiate({_id: \"rs0\", members: [{ _id: 0, host: \"mongodb:27017\" }]}) }
+        "
+      '
+    restart: "no"
+
+volumes:
+  medi_routines_db:

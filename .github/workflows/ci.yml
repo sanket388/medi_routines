@@ -1,0 +1,17 @@
+# continuous integration workflow to run tests on pull request to main
+name: CI - Test Application
+on:
+  pull_request:
+    branches: [ main ]
+jobs:
+  test:
+    name: Run Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run tests with Docker Compose
+        run: docker compose -f compose.test.yml -p test up --exit-code-from backend
+      - name: Cleanup
+        if: always()
+        run: docker compose -f compose.test.yml -p test down --rmi all

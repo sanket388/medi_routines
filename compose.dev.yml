@@ -4,6 +4,12 @@ services:
     build:
       context: ./medi_routines_backend/
       target: dev
+    environment:
+      - MONGODB_CONNECTION=mongodb://mongodb:27017
+      - PORT=8000
+      - NODE_ENV=development
+    env_file:
+      - ./medi_routines_backend/.env
     develop:
       watch:
         - path: ./medi_routines_backend/src
@@ -24,6 +30,8 @@ services:
     build:
       context: ./medi_routines_frontend/
       target: dev
+    env_file:
+      - ./medi_routines_frontend/.env
     develop:
       watch:
         - path: ./medi_routines_frontend/src
