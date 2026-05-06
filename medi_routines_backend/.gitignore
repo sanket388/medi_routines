@@ -33,4 +33,4 @@ npm-debug.log
 
 .env*
 
-medi-routines-firebase-adminsdk-fbsvc-198ccd33a3.json
+*firebase-adminsdk*.json

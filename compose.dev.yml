@@ -10,6 +10,9 @@ services:
       - NODE_ENV=development
     env_file:
       - ./medi_routines_backend/.env
+    volumes:
+    # firebase admin sdk secrets mounted via volume
+      - ./medi_routines_backend/firebase-adminsdk.json:/medi_routines_backend/firebase-adminsdk.json:ro
     develop:
       watch:
         - path: ./medi_routines_backend/src
