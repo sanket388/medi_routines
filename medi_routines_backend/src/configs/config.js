@@ -5,7 +5,8 @@ const config = {
     mongoDbConnection: String(process.env.MONGODB_CONNECTION),
     jwtSecret: String(process.env.JWT_SECRET),
     nodeEnv: String(process.env.NODE_ENV),
-    port: String(process.env.PORT)
+    port: String(process.env.PORT),
+    resendApiKey: String(process.env.RESEND_API_KEY)
 };
 
 module.exports = config;
