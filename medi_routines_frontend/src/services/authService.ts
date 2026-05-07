@@ -2,7 +2,7 @@
 
 import config from '../configs/config';
 import { InvalidDataError, NetworkError, UnknownError } from '../utils/errors/sharedErrors';
-import { InvalidCredentialsError, UserExistsError } from '../utils/errors/userErrors';
+import { InvalidCredentialsError, UserExistsError, EmailVerificationError, EmailVerificationExpiredError } from '../utils/errors/userErrors';
 import type { Timezone } from './timezoneService';
 
 // define the type for the signup function
@@ -16,9 +16,7 @@ interface SignupRequest
 
 interface SignupResponse
 {
-    name: string;
-    email: string;
-    timezone: Timezone;
+    message: string;
 };
 
 // define the type for the login function
@@ -46,6 +44,11 @@ interface GetUserResponse
     email: string;
     timezone: string;
 };
+
+interface VerifyEmailResponse
+{
+    message: string;
+}
 
 class AuthService
 {
@@ -168,6 +171,47 @@ class AuthService
         return (await response.json()) as GetUserResponse;
     }
 
+    // method to verify email
+    async verifyEmail(token: string): Promise<VerifyEmailResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/verify-email`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ token }),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if(response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        if (response.status === 400)
+        {
+            throw new EmailVerificationError((await response.json()).message);
+        }
+        else if (response.status === 410)
+        {
+            throw new EmailVerificationExpiredError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+        // 200 — verified successfully
+        return (await response.json()) as VerifyEmailResponse;
+    }
 }
 
 export default new AuthService();
@@ -177,5 +221,6 @@ export type {
     LoginRequest,
     LoginResponse,
     GetUserRequest,
-    GetUserResponse
+    GetUserResponse,
+    VerifyEmailResponse
 };

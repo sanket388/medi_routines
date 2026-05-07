@@ -6,7 +6,8 @@ const config = {
     jwtSecret: String(process.env.JWT_SECRET),
     nodeEnv: String(process.env.NODE_ENV),
     port: String(process.env.PORT),
-    resendApiKey: String(process.env.RESEND_API_KEY)
+    resendApiKey: String(process.env.RESEND_API_KEY),
+    frontendUrl: String(process.env.FRONTEND_URL)
 };
 
 module.exports = config;

@@ -24,9 +24,28 @@ class InvalidCredentialsError extends Error
         super(message);
     }
 }
+// invalid or already-used verification token (400)
+class EmailVerificationError extends Error
+{
+    constructor(message: string)
+    {
+        super(message);
+    }
+}
+
+// expired verification token (410)
+class EmailVerificationExpiredError extends Error
+{
+    constructor(message: string)
+    {
+        super(message);
+    }
+}
 
 export {
     UserExistsError,
     UserNotFoundError,
-    InvalidCredentialsError
+    InvalidCredentialsError,
+    EmailVerificationError,
+    EmailVerificationExpiredError,
 };

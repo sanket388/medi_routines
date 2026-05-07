@@ -279,9 +279,91 @@ const registerFcmToken = async (req, res, next) =>
     }
 };
 
+// method to verify email using the token from the email link
+const verifyEmail = async (req, res, next) =>
+{
+    try
+    {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+        {
+            throw new HttpError("Invalid request. Token is required.", 422);
+        }
+
+        // get the token from request body
+        const { token } = req.body;
+
+        // find the token document
+        let tokenDoc;
+        try
+        {
+            tokenDoc = await EmailVerificationToken.findOne({ token });
+        }
+        catch (err)
+        {
+            console.log("UserController :: verifyEmail :: ", err);
+            throw new HttpError("Failed to verify email. Please try again later.", 500);
+        }
+
+        if (!tokenDoc)
+        {
+            // token not found
+            throw new HttpError("Invalid or already used verification link.", 400);
+        }
+
+        // check expiry
+        if (tokenDoc.expiresAt < new Date())
+        {
+            // try to delete expired token
+            try
+            {
+                await EmailVerificationToken.deleteOne({ _id: tokenDoc._id });
+            }
+            catch (err)
+            {
+                console.error("UserController :: verifyEmail :: Failed to delete expired token :: ", err);
+            }
+            throw new HttpError("Verification link has expired. Please request a new one.", 410);
+        }
+
+        // atomically mark user verified and delete token
+        const session = await mongoose.startSession();
+        try
+        {
+            await session.withTransaction(async () =>
+            {
+                await User.updateOne(
+                    { _id: tokenDoc.userId },
+                    { $set: { isEmailVerified: true } },
+                    { session }
+                );
+
+                await EmailVerificationToken.deleteOne({ _id: tokenDoc._id }, { session });
+            });
+        }
+        catch (err)
+        {
+            console.log("UserController :: verifyEmail :: ", err);
+            throw new HttpError("Failed to verify email. Please try again later.", 500);
+        }
+        finally
+        {
+            await session.endSession();
+        }
+
+        res.status(200).json({ message: "Email verified successfully." });
+    }
+    catch (e)
+    {
+        console.log(e);
+        return next(e);
+    }
+};
+
 module.exports = {
     signup,
     login,
     getUser,
-    registerFcmToken
+    registerFcmToken,
+    verifyEmail,
 };

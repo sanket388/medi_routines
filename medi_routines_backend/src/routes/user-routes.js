@@ -46,4 +46,15 @@ router.post(
     userController.registerFcmToken // New controller method
 );
 
+// for verifying email
+router.post(
+    "/verify-email",
+    [
+        // validate that token is provided
+        check("token").not().isEmpty()
+    ],
+    userController.verifyEmail
+);
+
+
 module.exports = router;
