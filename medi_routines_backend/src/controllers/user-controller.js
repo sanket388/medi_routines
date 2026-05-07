@@ -366,10 +366,102 @@ const verifyEmail = async (req, res, next) =>
     }
 };
 
+// method to request a new verification link
+const requestVerificationLink = async (req, res, next) =>
+{
+    try
+    {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+        {
+            throw new HttpError("Invalid inputs, please provide valid email.", 422);
+        }
+
+        const { email } = req.body;
+
+        // find the user
+        let user;
+        try
+        {
+            user = await User.findOne({ email });
+        }
+        catch (err)
+        {
+            console.log("UserController :: requestVerificationLink :: ", err);
+            throw new HttpError("Failed to request link. Please try again later.", 500);
+        }
+
+        // To prevent email enumeration, we always return 200 with the same message
+        // whether the user exists, is already verified, or actually gets a link.
+        const successMessage = "Verification link sent";
+
+        if (!user || user.isEmailVerified)
+        {
+            return res.status(200).json({ message: successMessage });
+        }
+
+        // generate a secure random token for email verification
+        const verificationToken = crypto.randomBytes(64).toString("hex");
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h from now
+
+        // create the new token
+        const tokenDoc = new EmailVerificationToken(
+            {
+                userId: user._id,
+                token: verificationToken,
+                expiresAt
+            }
+        );
+
+        // replace any existing token with a new one
+        const session = await mongoose.startSession();
+        try
+        {
+            await session.withTransaction(async () =>
+            {
+                // delete any existing tokens for this user
+                await EmailVerificationToken.deleteMany({ userId: user._id }, { session });
+                await tokenDoc.save({ session });
+            });
+        }
+        catch (err)
+        {
+            console.log("UserController :: requestVerificationLink :: ", err);
+            throw new HttpError("Failed to request link. Please try again later.", 500);
+        }
+        finally
+        {
+            await session.endSession();
+        }
+
+        // send verification email
+        try
+        {
+            const to = email;
+            const subject = "Verify your email for MediRoutines";
+            const html = verificationEmailTemplate(`${config.frontendUrl}/auth/verify-email?token=${verificationToken}`);
+            await sendEmail(to, subject, html);
+        }
+        catch (err)
+        {
+            console.error("UserController :: requestVerificationLink :: Failed to send email :: ", err);
+            throw new HttpError("Failed to send verification link. Please try again later.", 500);
+        }
+
+        res.status(200).json({ message: successMessage });
+    }
+    catch (e)
+    {
+        console.log(e);
+        return next(e);
+    }
+};
+
 module.exports = {
     signup,
     login,
     getUser,
     registerFcmToken,
     verifyEmail,
+    requestVerificationLink
 };

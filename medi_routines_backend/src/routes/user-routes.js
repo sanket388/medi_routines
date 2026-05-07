@@ -56,5 +56,13 @@ router.post(
     userController.verifyEmail
 );
 
+// for requesting a new verification link
+router.post(
+    "/request-verification-link",
+    [
+        check("email").normalizeEmail().isEmail()
+    ],
+    userController.requestVerificationLink
+);
 
 module.exports = router;

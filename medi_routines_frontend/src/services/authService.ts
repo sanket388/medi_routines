@@ -2,7 +2,7 @@
 
 import config from '../configs/config';
 import { InvalidDataError, NetworkError, UnknownError } from '../utils/errors/sharedErrors';
-import { InvalidCredentialsError, UserExistsError, EmailVerificationError, EmailVerificationExpiredError } from '../utils/errors/userErrors';
+import { InvalidCredentialsError, UserExistsError, EmailVerificationError, EmailVerificationExpiredError, EmailNotVerifiedError } from '../utils/errors/userErrors';
 import type { Timezone } from './timezoneService';
 
 // define the type for the signup function
@@ -46,6 +46,11 @@ interface GetUserResponse
 };
 
 interface VerifyEmailResponse
+{
+    message: string;
+}
+
+interface RequestVerificationLinkResponse
 {
     message: string;
 }
@@ -216,6 +221,41 @@ class AuthService
         // 200 — verified successfully
         return (await response.json()) as VerifyEmailResponse;
     }
+
+    // method to request a new verification link
+    async requestVerificationLink(email: string): Promise<RequestVerificationLinkResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/request-verification-link`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if (response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+
+        return (await response.json()) as RequestVerificationLinkResponse;
+    }
+
 }
 
 export default new AuthService();
