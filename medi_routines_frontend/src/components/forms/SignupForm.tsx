@@ -9,6 +9,7 @@ import InputError from '../input/InputError';
 import SelectInput from '../input/SelectInput';
 import Button from '../input/Button';
 import SimpleLink from '../ui/SimpleLink';
+import toast from 'react-hot-toast';
 
 // this component will handle the signup process
 // fields will be:
@@ -51,7 +52,8 @@ function SignupForm()
         .then(()=>
         {
             // successfully signed up
-            // go to login page
+            // show a toast that email verification link has been sent and go to login page
+            toast.success('Verification link sent! Please check your email to verify your account.');
             navigate("/auth/login");
         })
         .catch((err: Error)=>

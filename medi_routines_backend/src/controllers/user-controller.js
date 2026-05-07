@@ -1,10 +1,15 @@
 // user model
 const { validationResult } = require("express-validator");
 const User = require("../models/User.js");
+const EmailVerificationToken = require("../models/EmailVerificationToken.js");
 const HttpError = require("../models/HttpError.js");
 const { hash, compare } = require("bcrypt");
 const config = require("../configs/config.js");
 const { sign } = require("jsonwebtoken");
+const crypto = require("crypto");
+const mongoose = require("mongoose");
+const { sendEmail } = require("../services/email-service.js");
+const { verificationEmailTemplate } = require("../utils/email-templates.js");
 
 const SALT_ROUNDS = 12;
 
@@ -44,7 +49,12 @@ const signup = async (req, res, next) =>
 
         // hash the password
         const hashedPassword = await hash(password, SALT_ROUNDS);
-        // create the user
+
+        // generate a secure random token for email verification
+        const verificationToken = crypto.randomBytes(64).toString("hex");
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h from now
+
+        // create the user and token documents
         const createdUser = new User(
             {
                 name,
@@ -52,27 +62,54 @@ const signup = async (req, res, next) =>
                 password: hashedPassword,
                 timezone,
                 routines: [],
-                userDefinedMedicines: []
+                userDefinedMedicines: [],
+                isEmailVerified: false
             }
         );
-
-        // save
+        const tokenDoc = new EmailVerificationToken(
+            {
+                userId: createdUser._id,
+                token: verificationToken,
+                expiresAt
+            }
+        );
+        const session = await mongoose.startSession();
         try
         {
-            await createdUser.save();
+            // create user and token atomically inside a session
+            await session.withTransaction(async () =>
+            {
+                await createdUser.save({ session });
+                await tokenDoc.save({ session });
+            });
         }
         catch(err)
         {
             console.log("UserController :: Signup :: ", err);
             throw new HttpError("Failed to signup. Please try again.", 500);
         }
+        finally
+        {
+            await session.endSession();
+        }
 
-        // remove the password from to-send
-        createdUser.password = undefined;
+        // send verification email
+        try
+        {
+            const to = email;
+            const subject = "Verify your email for MediRoutines";
+            const html = verificationEmailTemplate(`${config.frontendUrl}/auth/verify-email?token=${verificationToken}`);
+            await sendEmail(to, subject, html);
+        }
+        catch(err)
+        {
+            console.error("UserController :: Signup :: Failed to send verification email :: ", err);
+        }
+
         // send response
         res
         .status(201)
-        .json({user: createdUser.toObject({getters: true})});
+        .json({ message: "Verification link sent. Please check your email to verify your account." });
 
     }
     catch(e)
