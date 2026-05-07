@@ -4,6 +4,7 @@ import authService, { type LoginRequest } from "../../services/authService";
 import { useAppDispatch } from "../../store/hooks";
 import { setToken } from "../../store/slices";
 import { handleErrorsBeforeLogin } from "../../utils/errors/handlers";
+import { EmailNotVerifiedError } from "../../utils/errors/userErrors";
 import InputBox from "../input/InputBox";
 import InputError from "../input/InputError";
 import Button from "../input/Button";
@@ -25,6 +26,9 @@ function LoginForm()
     // submit loading state
     const [submitLoading, setSubmitLoading] = useState<boolean>(false);
 
+    // show "request new link" hint when email is unverified
+    const [emailNotVerified, setEmailNotVerified] = useState<boolean>(false);
+
     // dispatcher
     const appDispatch = useAppDispatch();
 
@@ -39,13 +43,18 @@ function LoginForm()
         {
             // got the response
             // save the token
+            setEmailNotVerified(false);
             appDispatch(setToken(loginResp));
 
         })
         .catch((err: Error) =>
         {
             console.log(err);
-            // handle error
+            if (err instanceof EmailNotVerifiedError)
+            {
+                setEmailNotVerified(true);
+            }
+            // handle error (toast)
             handleErrorsBeforeLogin(err);
         })
         .finally(() =>
@@ -99,6 +108,18 @@ function LoginForm()
                     Don't have an account? Sign up here.
                 </SimpleLink>
             </div>
+
+            {/* request new verification link if unverified */}
+            {emailNotVerified && (
+                <div className="text-center mt-2">
+                    <SimpleLink
+                        to='/auth/request-verification-link'
+                        className="text-yellow-600 hover:text-yellow-700"
+                    >
+                        Didn't get the email? Request a new verification link.
+                    </SimpleLink>
+                </div>
+            )}
 
         </form>
 

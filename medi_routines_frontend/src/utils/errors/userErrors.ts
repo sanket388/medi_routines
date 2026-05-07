@@ -24,6 +24,16 @@ class InvalidCredentialsError extends Error
         super(message);
     }
 }
+
+// email not verified — user exists but hasn't verified (403 on login)
+class EmailNotVerifiedError extends Error
+{
+    constructor(message: string)
+    {
+        super(message);
+    }
+}
+
 // invalid or already-used verification token (400)
 class EmailVerificationError extends Error
 {
@@ -48,4 +58,5 @@ export {
     InvalidCredentialsError,
     EmailVerificationError,
     EmailVerificationExpiredError,
+    EmailNotVerifiedError,
 };

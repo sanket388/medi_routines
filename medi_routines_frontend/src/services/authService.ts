@@ -126,6 +126,10 @@ class AuthService
         {
             throw new InvalidCredentialsError((await response.json()).message);
         }
+        else if(response.status==403)
+        {
+            throw new EmailNotVerifiedError((await response.json()).message);
+        }
         else if(response.status!=200)
         {
             throw new UnknownError('An unknown error occurred. Please try again later.');

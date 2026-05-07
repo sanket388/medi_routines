@@ -160,6 +160,12 @@ const login = async(req, res, next)=>
 
         if(match)
         {
+            // check email verification
+            if (!user.isEmailVerified)
+            {
+                throw new HttpError("Please verify your email before logging in.", 403);
+            }
+
             let token = sign(
                 {
                     userId: user._id,
