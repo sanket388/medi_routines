@@ -21,10 +21,18 @@
 │  │  │ Backend   │  │  Frontend    │  │  Database       │   │  │
 │  │  │ :8000     │  │  :5173       │  │  :27017         │   │  │
 │  │  │           │  │              │  │                 │   │  │
-│  │  └─────┬─────┘  └──────────────┘  └─────────────────┘   │  │
-│  │        │                                    ▲           │  │
-│  │        └────────────────────────────────────┘           │  │
-│  │                                                         │  │
+│  │  └─┬───┬─────┘  └──────────────┘  └─────────────────┘   │  │
+│  │    |   │                                    ▲           │  │
+│  │    |   └────────────────────────────────────┘           │  │
+│  │    ▼                                                    │  │
+|  |   ┌─────────────┐                                       |  |
+|  |   | Mailpit     |                                       |  |
+|  |   | SMTP        |                                       |  |
+|  |   | Test Server |                                       |  |
+|  |   | :1025       |                                       |  |
+|  |   └─────────────┘                                       |  |
+|  |                                                         |  |
+|  |                                                         |  |
 │  └─────────────────────────────────────────────────────────┘  │
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
@@ -54,6 +62,7 @@
 ```
 
 Only port 80 is exposed publicly. Backend, frontend, and database communicate internally over Docker's network.
+Also, real SMTP server is used
 
 ---
 
@@ -63,13 +72,30 @@ The dev environment is fully Dockerized — no need to install Node, MongoDB, or
 
 ### 1. Environment Files
 
-**Backend** — create `medi_routines_backend/.env`:
+**Backend** — create `medi_routines_backend/.env.dev`:
 ```dotenv
-JWT_SECRET=any-random-string-for-local-dev
+# database
+MONGODB_CONNECTION=mongodb://mongodb:27017
+
+# server
+PORT=8000
+NODE_ENV=development
+
+# smtp
+SMTP_HOST=mailpit
+SMTP_PORT=1025
+SMTP_USER=
+SMTP_PASS=
+
+# secrets
+JWT_SECRET=any-random-string-in-development
 FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/medi_routines_backend/firebase-adminsdk.json
+
+# frontend
+FRONTEND_URL=http://localhost:5173
 ```
 
-**Frontend** — create `medi_routines_frontend/.env`:
+**Frontend** — create `medi_routines_frontend/.env.dev`:
 ```dotenv
 VITE_MEDI_ROUTINES_SERVER_URL=http://localhost:8000
 VITE_TIMEZONES_SERVER_URL=https://timeapi.io
@@ -129,8 +155,25 @@ exit
 
 **5. Create `.env.prod` locally** at `medi_routines_backend/.env.prod`:
 ```dotenv
+# database
+MONGODB_CONNECTION=mongodb://mongodb:27017
+
+# server
+PORT=8000
+NODE_ENV=production
+
+# smtp
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+
+# secrets
 JWT_SECRET=
 FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/medi_routines_backend/firebase-adminsdk.json
+
+# frontend
+FRONTEND_URL=https://mediroutines.sanketgupta.tech
 ```
 
 **6. Copy secrets to the VM**

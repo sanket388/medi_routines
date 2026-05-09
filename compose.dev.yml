@@ -4,12 +4,11 @@ services:
     build:
       context: ./medi_routines_backend/
       target: dev
-    environment:
-      - MONGODB_CONNECTION=mongodb://mongodb:27017
-      - PORT=8000
-      - NODE_ENV=development
     env_file:
-      - ./medi_routines_backend/.env
+      - ./medi_routines_backend/.env.dev
+    depends_on:
+      - mongodb
+      - mailpit
     volumes:
     # firebase admin sdk secrets mounted via volume
       - ./medi_routines_backend/firebase-adminsdk.json:/medi_routines_backend/firebase-adminsdk.json:ro
@@ -34,7 +33,7 @@ services:
       context: ./medi_routines_frontend/
       target: dev
     env_file:
-      - ./medi_routines_frontend/.env
+      - ./medi_routines_frontend/.env.dev
     develop:
       watch:
         - path: ./medi_routines_frontend/src
@@ -72,6 +71,13 @@ services:
         "
       '
     restart: "no"
+  
+  # mailpit for testing emails in development
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
 volumes:
   medi_routines_db:

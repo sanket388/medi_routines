@@ -54,33 +54,27 @@ const signup = async (req, res, next) =>
         const verificationToken = crypto.randomBytes(64).toString("hex");
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h from now
 
-        // create the user and token documents
-        const createdUser = new User(
-            {
-                name,
-                email,
-                password: hashedPassword,
-                timezone,
-                routines: [],
-                userDefinedMedicines: [],
-                isEmailVerified: false
-            }
-        );
-        const tokenDoc = new EmailVerificationToken(
-            {
-                userId: createdUser._id,
-                token: verificationToken,
-                expiresAt
-            }
-        );
         const session = await mongoose.startSession();
         try
         {
             // create user and token atomically inside a session
             await session.withTransaction(async () =>
             {
-                await createdUser.save({ session });
-                await tokenDoc.save({ session });
+                const [createdUser] = await User.create([{
+                    name,
+                    email,
+                    password: hashedPassword,
+                    timezone,
+                    routines: [],
+                    userDefinedMedicines: [],
+                    isEmailVerified: false
+                }], { session });
+
+                await EmailVerificationToken.create([{
+                    userId: createdUser._id,
+                    token: verificationToken,
+                    expiresAt
+                }], { session });
             });
         }
         catch(err)

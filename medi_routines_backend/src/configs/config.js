@@ -6,8 +6,11 @@ const config = {
     jwtSecret: String(process.env.JWT_SECRET),
     nodeEnv: String(process.env.NODE_ENV),
     port: String(process.env.PORT),
-    resendApiKey: String(process.env.RESEND_API_KEY),
-    frontendUrl: String(process.env.FRONTEND_URL)
+    frontendUrl: String(process.env.FRONTEND_URL),
+    smtpHost: String(process.env.SMTP_HOST),
+    smtpPort: Number(process.env.SMTP_PORT),
+    smtpUser: String(process.env.SMTP_USER),
+    smtpPass: String(process.env.SMTP_PASS)
 };
 
 module.exports = config;
