@@ -1,6 +1,7 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
+const { signupAndLogin } = require('../test-helpers/auth-helper');
 
 let mongoServer;
 let app;
@@ -20,25 +21,13 @@ afterAll(async () => {
 
 beforeEach(async () => {
     await mongoose.connection.db.dropDatabase();
-    // Signup and login a user to get a token for secure routes
-    const signupRes = await request(app)
-        .post('/api/user/signup')
-        .send({
-            name: "Test User",
-            email: "test@example.com",
-            password: "password123",
-            timezone: "Asia/Kolkata"
-        });
-    expect(signupRes.statusCode).toBe(201);
-
-    const loginRes = await request(app)
-        .post('/api/user/login')
-        .send({
-            email: "test@example.com",
-            password: "password123"
-        });
-    expect(loginRes.statusCode).toBe(200);
-    token = loginRes.body.token;
+    // signup, verify email, and login to get a token for authenticated routes
+    token = await signupAndLogin(app, {
+        name: "Test User",
+        email: "test@example.com",
+        password: "password123",
+        timezone: "Asia/Kolkata"
+    });
 });
 
 describe('User Defined Medicine Routes', () => {

@@ -2,60 +2,72 @@ const request = require('supertest');
 const User = require('../src/models/User');
 const EmailVerificationToken = require('../src/models/EmailVerificationToken');
 
-async function signupAndLoginUser(app, userData = {}) {
+
+async function signup(app, userData = {}) {
     const defaultData = {
         name: "Test User",
         email: "test@example.com",
         password: "password123",
         timezone: "Asia/Kolkata"
     };
-
     const finalData = { ...defaultData, ...userData };
-
-    // 1. Signup
-    const signupRes = await request(app)
+    const res = await request(app)
         .post('/api/user/signup')
         .send(finalData);
+    return res;
+}
 
-    if (signupRes.statusCode !== 201) {
-        throw new Error(`Signup failed with status ${signupRes.statusCode}: ${JSON.stringify(signupRes.body)}`);
+async function getVerificationToken(email) {
+    // get the verification token from the database itself
+    // get the user id first
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new Error(`User not found for email: ${email}`);
     }
-
-    // 2. Fetch User and Token
-    const user = await User.findOne({ email: finalData.email });
-    if (!user) throw new Error("User not found after signup");
-
+    // get the verification token
     const tokenDoc = await EmailVerificationToken.findOne({ userId: user._id });
-    if (!tokenDoc) throw new Error("Verification token not found after signup");
+    if (!tokenDoc) {
+        throw new Error(`Verification token not found for user: ${user._id}`);
+    }
+    return tokenDoc.token;
+}
 
-    // 3. Verify Email
-    const verifyRes = await request(app)
+async function verifyEmail(app, token) {
+    const res = await request(app)
         .post('/api/user/verify-email')
-        .send({ token: tokenDoc.token });
+        .send({ token });
+    return res;
+}
 
-    if (verifyRes.statusCode !== 200) {
-        throw new Error(`Verify email failed with status ${verifyRes.statusCode}: ${JSON.stringify(verifyRes.body)}`);
-    }
-
-    // 4. Login
-    const loginRes = await request(app)
+async function login(app, email, password) {
+    const res = await request(app)
         .post('/api/user/login')
-        .send({
-            email: finalData.email,
-            password: finalData.password
-        });
+        .send({ email, password });
+    return res;
+}
 
-    if (loginRes.statusCode !== 200) {
-        throw new Error(`Login failed with status ${loginRes.statusCode}: ${JSON.stringify(loginRes.body)}`);
-    }
-
-    return {
-        userId: user._id.toString(),
-        token: loginRes.body.token,
-        user: user.toObject({ getters: true })
+// convenience helper for tests that just need a logged-in verified user
+async function signupAndLogin(app, userData = {}) {
+    const defaultData = {
+        name: "Test User",
+        email: "test@example.com",
+        password: "password123",
+        timezone: "Asia/Kolkata"
     };
+    const finalData = { ...defaultData, ...userData };
+    await signup(app, finalData);
+    const token = await getVerificationToken(finalData.email);
+    const verifyRes = await verifyEmail(app, token);
+    expect(verifyRes.statusCode).toBe(200);
+    const loginRes = await login(app, finalData.email, finalData.password);
+    expect(loginRes.body).toHaveProperty('token');
+    return loginRes.body.token;
 }
 
 module.exports = {
-    signupAndLoginUser
+    signup,
+    getVerificationToken,
+    verifyEmail,
+    login,
+    signupAndLogin
 };
