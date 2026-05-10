@@ -100,6 +100,12 @@ function LoginForm()
                 {submitLoading ? "Logging in..." : "Login"}
             </Button>
 
+            <div className="text-center -mt-2">
+                <SimpleLink to='/auth/forgot-password'>
+                    Forgot your password?
+                </SimpleLink>
+            </div>
+
             {/* simple link to register */}
             <div className="text-center mt-4">
                 <SimpleLink

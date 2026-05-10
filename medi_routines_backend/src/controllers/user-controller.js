@@ -2,6 +2,7 @@
 const { validationResult } = require("express-validator");
 const User = require("../models/User.js");
 const EmailVerificationToken = require("../models/EmailVerificationToken.js");
+const ForgotPasswordToken = require("../models/ForgotPasswordToken.js");
 const HttpError = require("../models/HttpError.js");
 const { hash, compare } = require("bcrypt");
 const config = require("../configs/config.js");
@@ -9,7 +10,7 @@ const { sign } = require("jsonwebtoken");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { sendEmail } = require("../services/email-service.js");
-const { verificationEmailTemplate } = require("../utils/email-templates.js");
+const { verificationEmailTemplate, forgotPasswordEmailTemplate } = require("../utils/email-templates.js");
 
 const SALT_ROUNDS = 12;
 
@@ -451,11 +452,176 @@ const requestVerificationLink = async (req, res, next) =>
     }
 };
 
+// method to request a forgot password link
+const forgotPassword = async (req, res, next) =>
+{
+    try
+    {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+        {
+            throw new HttpError("Invalid inputs, please provide valid email.", 422);
+        }
+
+        const { email } = req.body;
+
+        // To prevent email enumeration, always return the same success response.
+        // This avoids revealing whether the account exists or is eligible for reset.
+        const successMessage = "Password reset link sent on registered mail";
+
+        let user;
+        try
+        {
+            user = await User.findOne({ email });
+        }
+        catch (err)
+        {
+            console.log("UserController :: forgotPassword :: ", err);
+            throw new HttpError("Failed to request password reset. Please try again later.", 500);
+        }
+
+        if (!user || !user.isEmailVerified)
+        {
+            return res.status(200).json({ message: successMessage });
+        }
+
+        // Generate a fresh token and replace any existing one so only one reset link stays valid.
+        const resetToken = crypto.randomBytes(64).toString("hex");
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        const session = await mongoose.startSession();
+        try
+        {
+            await session.withTransaction(async () =>
+            {
+                await ForgotPasswordToken.deleteMany({ userId: user._id }, { session });
+                await ForgotPasswordToken.create([{
+                    userId: user._id,
+                    token: resetToken,
+                    expiresAt
+                }], { session });
+            });
+        }
+        catch (err)
+        {
+            console.log("UserController :: forgotPassword :: ", err);
+            throw new HttpError("Failed to request password reset. Please try again later.", 500);
+        }
+        finally
+        {
+            await session.endSession();
+        }
+
+        try
+        {
+            const to = email;
+            const subject = "Reset your MediRoutines password";
+            const html = forgotPasswordEmailTemplate(`${config.frontendUrl}/auth/change-password?token=${resetToken}`);
+            await sendEmail(to, subject, html);
+        }
+        catch (err)
+        {
+            console.error("UserController :: forgotPassword :: Failed to send email :: ", err);
+            throw new HttpError("Failed to send password reset link. Please try again later.", 500);
+        }
+
+        res.status(200).json({ message: successMessage });
+    }
+    catch (e)
+    {
+        console.log(e);
+        return next(e);
+    }
+};
+
+// method to change password using forgot password token
+const changePassword = async (req, res, next) =>
+{
+    try
+    {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+        {
+            throw new HttpError("Invalid inputs passed, please check your data.", 422);
+        }
+
+        const { token, newPassword } = req.body;
+
+        let tokenDoc;
+        try
+        {
+            tokenDoc = await ForgotPasswordToken.findOne({ token });
+        }
+        catch (err)
+        {
+            console.log("UserController :: changePassword :: ", err);
+            throw new HttpError("Failed to change password. Please try again later.", 500);
+        }
+
+        if (!tokenDoc)
+        {
+            throw new HttpError("Invalid password reset link.", 400);
+        }
+
+        // Delete expired tokens eagerly so they cannot be retried again.
+        if (tokenDoc.expiresAt < new Date())
+        {
+            try
+            {
+                await ForgotPasswordToken.deleteOne({ _id: tokenDoc._id });
+            }
+            catch (err)
+            {
+                console.error("UserController :: changePassword :: Failed to delete expired token :: ", err);
+            }
+
+            throw new HttpError("Password reset link has expired. Please request a new one.", 410);
+        }
+
+        const hashedPassword = await hash(newPassword, SALT_ROUNDS);
+
+        // Update the password and consume the token in one transaction.
+        // This prevents partial success where one step succeeds without the other.
+        const session = await mongoose.startSession();
+        try
+        {
+            await session.withTransaction(async () =>
+            {
+                await User.updateOne(
+                    { _id: tokenDoc.userId },
+                    { $set: { password: hashedPassword } },
+                    { session }
+                );
+
+                await ForgotPasswordToken.deleteOne({ _id: tokenDoc._id }, { session });
+            });
+        }
+        catch (err)
+        {
+            console.log("UserController :: changePassword :: ", err);
+            throw new HttpError("Failed to change password. Please try again later.", 500);
+        }
+        finally
+        {
+            await session.endSession();
+        }
+
+        res.status(200).json({ message: "Password changed successfully." });
+    }
+    catch (e)
+    {
+        console.log(e);
+        return next(e);
+    }
+};
+
 module.exports = {
     signup,
     login,
     getUser,
     registerFcmToken,
     verifyEmail,
-    requestVerificationLink
+    requestVerificationLink,
+    forgotPassword,
+    changePassword
 };

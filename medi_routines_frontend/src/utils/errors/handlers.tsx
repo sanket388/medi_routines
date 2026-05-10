@@ -1,6 +1,6 @@
 import toast from "react-hot-toast";
 import { NetworkError, InvalidDataError, UnknownError } from "./sharedErrors";
-import { InvalidCredentialsError, UserExistsError, UserNotFoundError, EmailNotVerifiedError } from "./userErrors";
+import { InvalidCredentialsError, UserExistsError, UserNotFoundError, EmailNotVerifiedError, PasswordResetError, PasswordResetExpiredError } from "./userErrors";
 import { MedicineNotFoundError, RoutineNotFoundError } from "./routineErrors";
 import { TakenAlreadyExistsError } from "./takenErrors";
 import { RoutineExistsWhileDeletingMedicineError } from "./medicineErrors";
@@ -18,6 +18,8 @@ const ROUTINE_NOT_FOUND = "Routine not found.";
 const TAKEN_ALREADY_EXISTS = "This medicine has already been marked as taken.";
 const ROUTINE_EXISTS_WHILE_DELETING_MEDICINE = "Cannot delete medicine as it is used in one or more routines.";
 const EMAIL_NOT_VERIFIED = "Email not verified. Please verify your email or request a new link.";
+const PASSWORD_RESET_INVALID = "Password reset link is invalid or has already been used.";
+const PASSWORD_RESET_EXPIRED = "Password reset link has expired. Please request a new one.";
 
 // For errors before login (signup, login, etc.)
 function handleErrorsBeforeLogin(error: unknown) {
@@ -33,6 +35,10 @@ function handleErrorsBeforeLogin(error: unknown) {
         toast.error(INVALID_CREDENTIALS);
     } else if (error instanceof EmailNotVerifiedError) {
         toast.error(EMAIL_NOT_VERIFIED);
+    } else if (error instanceof PasswordResetError) {
+        toast.error(PASSWORD_RESET_INVALID);
+    } else if (error instanceof PasswordResetExpiredError) {
+        toast.error(PASSWORD_RESET_EXPIRED);
     } else if (error instanceof UnknownError) {
         toast.error(UNKNOWN_ERROR);
     } else {

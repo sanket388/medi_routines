@@ -52,6 +52,24 @@ class EmailVerificationExpiredError extends Error
     }
 }
 
+// invalid or already-used password reset token (400)
+class PasswordResetError extends Error
+{
+    constructor(message: string)
+    {
+        super(message);
+    }
+}
+
+// expired password reset token (410)
+class PasswordResetExpiredError extends Error
+{
+    constructor(message: string)
+    {
+        super(message);
+    }
+}
+
 export {
     UserExistsError,
     UserNotFoundError,
@@ -59,4 +77,6 @@ export {
     EmailVerificationError,
     EmailVerificationExpiredError,
     EmailNotVerifiedError,
+    PasswordResetError,
+    PasswordResetExpiredError,
 };

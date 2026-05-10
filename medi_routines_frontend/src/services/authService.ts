@@ -2,7 +2,7 @@
 
 import config from '../configs/config';
 import { InvalidDataError, NetworkError, UnknownError } from '../utils/errors/sharedErrors';
-import { InvalidCredentialsError, UserExistsError, EmailVerificationError, EmailVerificationExpiredError, EmailNotVerifiedError } from '../utils/errors/userErrors';
+import { InvalidCredentialsError, UserExistsError, EmailVerificationError, EmailVerificationExpiredError, EmailNotVerifiedError, PasswordResetError, PasswordResetExpiredError } from '../utils/errors/userErrors';
 import type { Timezone } from './timezoneService';
 
 // define the type for the signup function
@@ -51,6 +51,22 @@ interface VerifyEmailResponse
 }
 
 interface RequestVerificationLinkResponse
+{
+    message: string;
+}
+
+interface ForgotPasswordResponse
+{
+    message: string;
+}
+
+interface ChangePasswordRequest
+{
+    token: string;
+    newPassword: string;
+}
+
+interface ChangePasswordResponse
 {
     message: string;
 }
@@ -256,6 +272,82 @@ class AuthService
         return (await response.json()) as RequestVerificationLinkResponse;
     }
 
+    // method to request forgot password link
+    async forgotPassword(email: string): Promise<ForgotPasswordResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/forgot-password`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if (response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+
+        return (await response.json()) as ForgotPasswordResponse;
+    }
+
+    // method to change password using forgot password token
+    async changePassword(data: ChangePasswordRequest): Promise<ChangePasswordResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/change-password`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if (response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        else if (response.status === 400)
+        {
+            throw new PasswordResetError((await response.json()).message);
+        }
+        else if (response.status === 410)
+        {
+            throw new PasswordResetExpiredError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+
+        return (await response.json()) as ChangePasswordResponse;
+    }
+
 }
 
 export default new AuthService();
@@ -266,5 +358,9 @@ export type {
     LoginResponse,
     GetUserRequest,
     GetUserResponse,
-    VerifyEmailResponse
+    VerifyEmailResponse,
+    RequestVerificationLinkResponse,
+    ForgotPasswordResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse
 };

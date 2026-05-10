@@ -65,4 +65,23 @@ router.post(
     userController.requestVerificationLink
 );
 
+// for requesting forgot password link
+router.post(
+    "/forgot-password",
+    [
+        check("email").normalizeEmail().isEmail()
+    ],
+    userController.forgotPassword
+);
+
+// for changing password using forgot password token
+router.post(
+    "/change-password",
+    [
+        check("token").not().isEmpty(),
+        check("newPassword").isLength({ min: 6 })
+    ],
+    userController.changePassword
+);
+
 module.exports = router;

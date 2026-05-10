@@ -1,6 +1,7 @@
 const request = require('supertest');
 const User = require('../src/models/User');
 const EmailVerificationToken = require('../src/models/EmailVerificationToken');
+const ForgotPasswordToken = require('../src/models/ForgotPasswordToken');
 
 
 async function signup(app, userData = {}) {
@@ -39,6 +40,23 @@ async function verifyEmail(app, token) {
     return res;
 }
 
+async function getForgotPasswordToken(email) {
+    // get the forgot password token from the database itself
+    // get the user id first
+    const user = await User.findOne({ email });
+    if (!user) {
+        throw new Error(`User not found for email: ${email}`);
+    }
+
+    // get the forgot password token
+    const tokenDoc = await ForgotPasswordToken.findOne({ userId: user._id });
+    if (!tokenDoc) {
+        throw new Error(`Forgot password token not found for user: ${user._id}`);
+    }
+
+    return tokenDoc.token;
+}
+
 async function login(app, email, password) {
     const res = await request(app)
         .post('/api/user/login')
@@ -67,6 +85,7 @@ async function signupAndLogin(app, userData = {}) {
 module.exports = {
     signup,
     getVerificationToken,
+    getForgotPasswordToken,
     verifyEmail,
     login,
     signupAndLogin

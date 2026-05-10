@@ -1,9 +1,11 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
-const { signup, login, signupAndLogin, verifyEmail, getVerificationToken } = require('../test-helpers/auth-helper');
+const bcrypt = require('bcrypt');
+const { signup, login, signupAndLogin, verifyEmail, getVerificationToken, getForgotPasswordToken } = require('../test-helpers/auth-helper');
 const User = require('../src/models/User');
 const EmailVerificationToken = require('../src/models/EmailVerificationToken');
+const ForgotPasswordToken = require('../src/models/ForgotPasswordToken');
 
 let mongoServer;
 
@@ -348,5 +350,170 @@ describe('User Routes', () => {
         const resLogin = await login(app, "test@example.com", "password123");
         expect(resLogin.statusCode).toBe(200);
         expect(resLogin.body).toHaveProperty('token');
+    });
+
+    // testcases for forgot-password
+    // 1. invalid email body should fail validation
+    it('should not request forgot password with invalid email', async () => {
+        const res = await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'invalid-email' });
+
+        expect(res.statusCode).toBe(422);
+        expect(res.body).toHaveProperty('message', 'Invalid inputs, please provide valid email.');
+    });
+
+    // 2. user does not exist, should still return success and create no token
+    it('should give success message even if user does not exist when requesting forgot password', async () => {
+        const res = await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'missing@example.com' });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).toHaveProperty('message', 'Password reset link sent on registered mail');
+
+        const tokenInDb = await ForgotPasswordToken.findOne({}).exec();
+        expect(tokenInDb).toBeNull();
+    });
+
+    // 3. user exists but email is not verified, should still return success and create no token
+    it('should give success message even if email is not verified when requesting forgot password', async () => {
+        await signup(app, {
+            name: 'Test User',
+            email: 'test@example.com',
+            password: 'password123',
+            timezone: 'Asia/Kolkata'
+        });
+        jest.clearAllMocks();
+
+        const res = await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'test@example.com' });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).toHaveProperty('message', 'Password reset link sent on registered mail');
+
+        const tokenInDb = await ForgotPasswordToken.findOne({}).exec();
+        expect(tokenInDb).toBeNull();
+    });
+
+    // 4. verified user should receive a fresh reset token and email
+    it('should create forgot password token for verified user and replace old token', async () => {
+        await signupAndLogin(app, {
+            name: 'Test User',
+            email: 'test@example.com',
+            password: 'password123',
+            timezone: 'Asia/Kolkata'
+        });
+
+        const firstRes = await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'test@example.com' });
+
+        expect(firstRes.statusCode).toBe(200);
+        expect(firstRes.body).toHaveProperty('message', 'Password reset link sent on registered mail');
+
+        const firstToken = await getForgotPasswordToken('test@example.com');
+
+        const secondRes = await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'test@example.com' });
+
+        expect(secondRes.statusCode).toBe(200);
+        expect(secondRes.body).toHaveProperty('message', 'Password reset link sent on registered mail');
+
+        const secondToken = await getForgotPasswordToken('test@example.com');
+        expect(secondToken).not.toBe(firstToken);
+
+        const user = await User.findOne({ email: 'test@example.com' });
+        const tokenCount = await ForgotPasswordToken.countDocuments({ userId: user._id });
+        expect(tokenCount).toBe(1);
+    });
+
+    // testcases for change-password
+    // 1. invalid request body should fail validation
+    it('should not change password with invalid request body', async () => {
+        const res = await request(app)
+            .post('/api/user/change-password')
+            .send({ token: '', newPassword: '123' });
+
+        expect(res.statusCode).toBe(422);
+        expect(res.body).toHaveProperty('message', 'Invalid inputs passed, please check your data.');
+    });
+
+    // 2. unknown token should return invalid token error
+    it('should not change password with invalid token', async () => {
+        const res = await request(app)
+            .post('/api/user/change-password')
+            .send({ token: 'invalid-token', newPassword: 'newpassword123' });
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toHaveProperty('message', 'Invalid password reset link.');
+    });
+
+    // 3. expired token should return 410 and delete token
+    it('should not change password with expired token', async () => {
+        await signupAndLogin(app, {
+            name: 'Test User',
+            email: 'test@example.com',
+            password: 'password123',
+            timezone: 'Asia/Kolkata'
+        });
+
+        await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'test@example.com' });
+
+        const user = await User.findOne({ email: 'test@example.com' });
+        const tokenDoc = await ForgotPasswordToken.findOne({ userId: user._id });
+        tokenDoc.expiresAt = new Date(Date.now() - 60 * 60 * 1000);
+        await tokenDoc.save();
+
+        const res = await request(app)
+            .post('/api/user/change-password')
+            .send({ token: tokenDoc.token, newPassword: 'newpassword123' });
+
+        expect(res.statusCode).toBe(410);
+        expect(res.body).toHaveProperty('message', 'Password reset link has expired. Please request a new one.');
+
+        const tokenInDb = await ForgotPasswordToken.findOne({ userId: user._id });
+        expect(tokenInDb).toBeNull();
+    });
+
+    // 4. valid token should update password, delete token and invalidate old password
+    it('should change password with valid token', async () => {
+        await signupAndLogin(app, {
+            name: 'Test User',
+            email: 'test@example.com',
+            password: 'password123',
+            timezone: 'Asia/Kolkata'
+        });
+
+        await request(app)
+            .post('/api/user/forgot-password')
+            .send({ email: 'test@example.com' });
+
+        const token = await getForgotPasswordToken('test@example.com');
+
+        const res = await request(app)
+            .post('/api/user/change-password')
+            .send({ token, newPassword: 'newpassword123' });
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body).toHaveProperty('message', 'Password changed successfully.');
+
+        const user = await User.findOne({ email: 'test@example.com' });
+        expect(await bcrypt.compare('newpassword123', user.password)).toBe(true);
+        expect(await bcrypt.compare('password123', user.password)).toBe(false);
+
+        const tokenInDb = await ForgotPasswordToken.findOne({ userId: user._id });
+        expect(tokenInDb).toBeNull();
+
+        const oldLoginRes = await login(app, 'test@example.com', 'password123');
+        expect(oldLoginRes.statusCode).toBe(401);
+
+        const newLoginRes = await login(app, 'test@example.com', 'newpassword123');
+        expect(newLoginRes.statusCode).toBe(200);
+        expect(newLoginRes.body).toHaveProperty('token');
     });
 });
