@@ -1,4 +1,3 @@
-# continuous integration workflow to run tests on pull request to main
 name: CI - Test Application
 on:
   pull_request:
@@ -10,8 +9,25 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Create .env.test
+        run: |
+          cat > ./medi_routines_backend/.env.test << EOF
+          MONGODB_CONNECTION=
+          PORT=8000
+          NODE_ENV=test
+          SMTP_HOST=mailpit
+          SMTP_PORT=1025
+          SMTP_USER=
+          SMTP_PASS=
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/medi_routines_backend/firebase-adminsdk.json
+          FRONTEND_URL=http://localhost:5173
+          EOF
+
       - name: Run tests with Docker Compose
-        run: docker compose -f compose.test.yml -p test up --exit-code-from backend
+        run: docker compose -f compose.test.yml -p test up --exit-code-from backend --build
+
       - name: Cleanup
         if: always()
         run: docker compose -f compose.test.yml -p test down --rmi all

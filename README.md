@@ -226,7 +226,7 @@ Add the following in GitHub → repo → Settings:
 
 ### Subsequent Deployments via CI/CD Setup
 
-- If .env.sample changed, make sure to copy latest .env.prod to server first.
+- If .env.sample changed in backend, make sure to copy latest .env.prod to server first.
 - If any other configuration file added, not tracked via git, make sure to copy it as well.
 - Also add steps for such a file in the readme itself, wherever necessary.
 - After that, can proceed with creating pull request to main.
