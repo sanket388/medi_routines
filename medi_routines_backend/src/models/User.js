@@ -16,7 +16,8 @@ const userSchema = new mongoose.Schema({
     routines : [{type: mongoose.Schema.Types.ObjectId, ref: 'Routine'}],
     // user's own defined medicines
     userDefinedMedicines: [{type: mongoose.Schema.Types.ObjectId, ref:'UserDefinedMedicine'}],
-    fcmTokens: [{type:String}]  // for push notifications
+    fcmTokens: [{type:String}],  // for push notifications
+    isEmailVerified: { type: Boolean, required: true, default: false }
 });
 
 const User = mongoose.model('User', userSchema);

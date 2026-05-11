@@ -46,4 +46,42 @@ router.post(
     userController.registerFcmToken // New controller method
 );
 
+// for verifying email
+router.post(
+    "/verify-email",
+    [
+        // validate that token is provided
+        check("token").not().isEmpty()
+    ],
+    userController.verifyEmail
+);
+
+// for requesting a new verification link
+router.post(
+    "/request-verification-link",
+    [
+        check("email").normalizeEmail().isEmail()
+    ],
+    userController.requestVerificationLink
+);
+
+// for requesting forgot password link
+router.post(
+    "/forgot-password",
+    [
+        check("email").normalizeEmail().isEmail()
+    ],
+    userController.forgotPassword
+);
+
+// for changing password using forgot password token
+router.post(
+    "/change-password",
+    [
+        check("token").not().isEmpty(),
+        check("newPassword").isLength({ min: 6 })
+    ],
+    userController.changePassword
+);
+
 module.exports = router;

@@ -27,10 +27,6 @@ services:
       context: ./medi_routines_backend/
       target: final
     restart: unless-stopped
-    environment:
-      - MONGODB_CONNECTION=mongodb://mongodb:27017
-      - PORT=8000
-      - NODE_ENV=production
     env_file:
       - ./medi_routines_backend/.env.prod
     volumes:

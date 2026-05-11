@@ -7,3 +7,11 @@ services:
     build:
       context: ./medi_routines_backend/
       target: test
+    env_file:
+      - ./medi_routines_backend/.env.test
+    depends_on:
+      - mailpit
+  
+  # mailpit for testing emails in test environment
+  mailpit:
+    image: axllent/mailpit:latest

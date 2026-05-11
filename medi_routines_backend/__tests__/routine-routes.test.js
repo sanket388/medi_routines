@@ -2,6 +2,7 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const withFixedDate = require('../test-helpers/withFixedDate');
+const { signupAndLogin } = require('../test-helpers/auth-helper');
 
 let replSet;
 let app;
@@ -24,26 +25,13 @@ afterAll(async () => {
 
 beforeEach(async () => {
     await mongoose.connection.db.dropDatabase();
-    // Signup and login a user to get a token for secure routes
-    const signupRes = await request(app)
-        .post('/api/user/signup')
-        .send({
+    // signup, verify email, and login to get a token for authenticated routes
+    token = await signupAndLogin(app, {
             name: "Routine User",
             email: "routine@example.com",
             password: "password123",
             timezone: "Asia/Kolkata"
-        });
-    expect(signupRes.statusCode).toBe(201);
-    userId = signupRes.body.user.id || signupRes.body.userId;
-
-    const loginRes = await request(app)
-        .post('/api/user/login')
-        .send({
-            email: "routine@example.com",
-            password: "password123"
-        });
-    expect(loginRes.statusCode).toBe(200);
-    token = loginRes.body.token;
+    });
 
     // Create a user-defined medicine for use in routine tests
     const medRes = await request(app)

@@ -2,7 +2,7 @@
 
 import config from '../configs/config';
 import { InvalidDataError, NetworkError, UnknownError } from '../utils/errors/sharedErrors';
-import { InvalidCredentialsError, UserExistsError } from '../utils/errors/userErrors';
+import { InvalidCredentialsError, UserExistsError, EmailVerificationError, EmailVerificationExpiredError, EmailNotVerifiedError, PasswordResetError, PasswordResetExpiredError } from '../utils/errors/userErrors';
 import type { Timezone } from './timezoneService';
 
 // define the type for the signup function
@@ -16,9 +16,7 @@ interface SignupRequest
 
 interface SignupResponse
 {
-    name: string;
-    email: string;
-    timezone: Timezone;
+    message: string;
 };
 
 // define the type for the login function
@@ -46,6 +44,32 @@ interface GetUserResponse
     email: string;
     timezone: string;
 };
+
+interface VerifyEmailResponse
+{
+    message: string;
+}
+
+interface RequestVerificationLinkResponse
+{
+    message: string;
+}
+
+interface ForgotPasswordResponse
+{
+    message: string;
+}
+
+interface ChangePasswordRequest
+{
+    token: string;
+    newPassword: string;
+}
+
+interface ChangePasswordResponse
+{
+    message: string;
+}
 
 class AuthService
 {
@@ -123,6 +147,10 @@ class AuthService
         {
             throw new InvalidCredentialsError((await response.json()).message);
         }
+        else if(response.status==403)
+        {
+            throw new EmailNotVerifiedError((await response.json()).message);
+        }
         else if(response.status!=200)
         {
             throw new UnknownError('An unknown error occurred. Please try again later.');
@@ -168,6 +196,158 @@ class AuthService
         return (await response.json()) as GetUserResponse;
     }
 
+    // method to verify email
+    async verifyEmail(token: string): Promise<VerifyEmailResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/verify-email`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ token }),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if(response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        if (response.status === 400)
+        {
+            throw new EmailVerificationError((await response.json()).message);
+        }
+        else if (response.status === 410)
+        {
+            throw new EmailVerificationExpiredError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+        // 200 — verified successfully
+        return (await response.json()) as VerifyEmailResponse;
+    }
+
+    // method to request a new verification link
+    async requestVerificationLink(email: string): Promise<RequestVerificationLinkResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/request-verification-link`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if (response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+
+        return (await response.json()) as RequestVerificationLinkResponse;
+    }
+
+    // method to request forgot password link
+    async forgotPassword(email: string): Promise<ForgotPasswordResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/forgot-password`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if (response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+
+        return (await response.json()) as ForgotPasswordResponse;
+    }
+
+    // method to change password using forgot password token
+    async changePassword(data: ChangePasswordRequest): Promise<ChangePasswordResponse>
+    {
+        let response: Response;
+
+        try
+        {
+            response = await fetch(`${config.baseUrl}/api/user/change-password`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+        }
+        catch (error)
+        {
+            console.log(error);
+            throw new NetworkError('Please check your internet connection and try again.');
+        }
+
+        if (response.status === 422)
+        {
+            throw new InvalidDataError((await response.json()).message);
+        }
+        else if (response.status === 400)
+        {
+            throw new PasswordResetError((await response.json()).message);
+        }
+        else if (response.status === 410)
+        {
+            throw new PasswordResetExpiredError((await response.json()).message);
+        }
+        else if (response.status !== 200)
+        {
+            throw new UnknownError('An unknown error occurred. Please try again later.');
+        }
+
+        return (await response.json()) as ChangePasswordResponse;
+    }
+
 }
 
 export default new AuthService();
@@ -177,5 +357,10 @@ export type {
     LoginRequest,
     LoginResponse,
     GetUserRequest,
-    GetUserResponse
+    GetUserResponse,
+    VerifyEmailResponse,
+    RequestVerificationLinkResponse,
+    ForgotPasswordResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse
 };

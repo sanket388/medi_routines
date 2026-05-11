@@ -6,6 +6,10 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import AuthLayout from './AuthLayout.tsx'
 import SignupPage from './components/pages/SignupPage.tsx'
 import LoginPage from './components/pages/LoginPage.tsx'
+import VerifyEmailPage from './components/pages/VerifyEmailPage.tsx'
+import RequestVerificationLinkPage from './components/pages/RequestVerificationLinkPage.tsx'
+import ForgotPasswordPage from './components/pages/ForgotPasswordPage.tsx'
+import ChangePasswordPage from './components/pages/ChangePasswordPage.tsx'
 import AllUserDefinedMedicinesPage from './components/pages/AllUserDefinedMedicinesPage.tsx'
 import CreateUserDefinedMedicinePage from './components/pages/CreateUserDefinedMedicinePage.tsx'
 import AllRoutinesPage from './components/pages/AllRoutinesPage.tsx'
@@ -36,6 +40,10 @@ createRoot(document.getElementById('root')!).render(
 
                             <Route path="signup" element={<SignupPage />} />
                             <Route path="login" element={<LoginPage />} />
+                            <Route path="verify-email" element={<VerifyEmailPage />} />
+                            <Route path="request-verification-link" element={<RequestVerificationLinkPage />} />
+                            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+                            <Route path="change-password" element={<ChangePasswordPage />} />
 
                         </Route>
 
