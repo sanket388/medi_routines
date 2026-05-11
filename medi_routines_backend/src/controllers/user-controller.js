@@ -12,6 +12,10 @@ const mongoose = require("mongoose");
 const { sendEmail } = require("../services/email-service.js");
 const { verificationEmailTemplate, forgotPasswordEmailTemplate } = require("../utils/email-templates.js");
 
+// for sign in with google
+const {OAuth2Client} = require('google-auth-library');
+const googleClient = new OAuth2Client(config.googleClientId);
+
 const SALT_ROUNDS = 12;
 
 // method to sign up a user
@@ -68,7 +72,9 @@ const signup = async (req, res, next) =>
                     timezone,
                     routines: [],
                     userDefinedMedicines: [],
-                    isEmailVerified: false
+                    isEmailVerified: false,
+                    // since this is signup with email and password, local is the auth provider.
+                    authProviders: ['local']
                 }], { session });
 
                 await EmailVerificationToken.create([{
@@ -150,6 +156,11 @@ const login = async(req, res, next)=>
             throw new HttpError("Incorrect credentials", 401);
         }
 
+        // user has no password (google-only account)
+        if (!user.password) {
+            throw new HttpError("Incorrect credentials", 401);
+        }
+
         // match the password
         const match = await compare(password, user.password);
 
@@ -169,7 +180,7 @@ const login = async(req, res, next)=>
                 },
                 config.jwtSecret,
                 {
-                    expiresIn: "24h"
+                    expiresIn: "7d"
                 }
             );
 
@@ -589,7 +600,10 @@ const changePassword = async (req, res, next) =>
             {
                 await User.updateOne(
                     { _id: tokenDoc.userId },
-                    { $set: { password: hashedPassword } },
+                    {
+                        $set: { password: hashedPassword },
+                        $addToSet: { authProviders: 'local' } // in case user was google-only, now they can login with password too
+                    },
                     { session }
                 );
 
@@ -615,6 +629,105 @@ const changePassword = async (req, res, next) =>
     }
 };
 
+const googleSignin = async (req, res, next) =>
+{
+    try
+    {
+        const errors = validationResult(req);
+        if (!errors.isEmpty())
+        {
+            throw new HttpError("Invalid inputs passed, please check your data.", 422);
+        }
+
+        const { idToken, timezone } = req.body;
+
+        // verify id token with google
+        let payload;
+        try
+        {
+            const ticket = await googleClient.verifyIdToken({
+                idToken,
+                audience: config.googleClientId
+            });
+            payload = ticket.getPayload();
+        }
+        catch (err)
+        {
+            console.log("UserController :: googleSignin :: ", err);
+            throw new HttpError("Invalid Google token.", 401);
+        }
+
+        const { sub: googleId, email, name } = payload;
+
+        // find or create user
+        let user;
+        const session = await mongoose.startSession();
+        try
+        {
+            await session.withTransaction(async () => {
+
+                // 1. find by googleId
+                user = await User.findOne({ googleId }).session(session);
+
+                if (user) {
+                    // already a google user, just login
+                    return;
+                }
+
+                // 2. find by email, add google as auth provider if found
+                user = await User.findOne({ email }).session(session);
+
+                if (user)
+                {
+                    // existing local user — add google as auth provider
+                    user.googleId = googleId;
+                    if (!user.authProviders.includes('google')) {
+                        user.authProviders.push('google');
+                    }
+                    user.isEmailVerified = true;
+                    await user.save({ session });
+                    return;
+                }
+
+                // 3. new user — create
+                [user] = await User.create([{
+                    name,
+                    email,
+                    timezone,
+                    googleId,
+                    authProviders: ['google'],
+                    isEmailVerified: true,
+                    routines: [],
+                    userDefinedMedicines: []
+                }], { session });
+            });
+        }
+        catch (err)
+        {
+            console.log("UserController :: googleSignin :: ", err);
+            throw new HttpError("Google sign in failed. Please try again.", 500);
+        }
+        finally
+        {
+            await session.endSession();
+        }
+
+        // issue jwt for found or created user
+        const token = sign(
+            { userId: user._id, name: user.name, email: user.email },
+            config.jwtSecret,
+            { expiresIn: '7d' }
+        );
+
+        res.status(200).json({ token });
+
+    } catch (e) {
+        console.log(e);
+        return next(e);
+    }
+};
+
+
 module.exports = {
     signup,
     login,
@@ -623,5 +736,6 @@ module.exports = {
     verifyEmail,
     requestVerificationLink,
     forgotPassword,
-    changePassword
+    changePassword,
+    googleSignin
 };

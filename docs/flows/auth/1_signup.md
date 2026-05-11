@@ -1,4 +1,4 @@
-# Signup flow
+# Signup flow (manual, without Sign in With Google)
 
 ## Endpoint
 `POST /api/user/signup`
@@ -17,7 +17,7 @@ Email exists? Yes → 409
         ▼
 Hash password
 Generate secure random token (crypto.randomBytes)
-Create User (isEmailVerified: false)
+Create User (isEmailVerified: false, authProviders: ['local'])
 Create EmailVerificationToken { userId, token, expiresAt: now+24h }
 Save both in transaction
         │

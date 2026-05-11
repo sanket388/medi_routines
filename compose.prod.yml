@@ -20,6 +20,7 @@ services:
       args:
         - VITE_MEDI_ROUTINES_SERVER_URL=
         - VITE_TIMEZONES_SERVER_URL=https://timeapi.io
+        - VITE_GOOGLE_CLIENT_ID=231176824597-4phl9gfibidgn5l4j718n9ujtturgh26.apps.googleusercontent.com
     restart: unless-stopped
 
   backend:

@@ -10,7 +10,8 @@ const config = {
     smtpHost: String(process.env.SMTP_HOST),
     smtpPort: Number(process.env.SMTP_PORT),
     smtpUser: String(process.env.SMTP_USER),
-    smtpPass: String(process.env.SMTP_PASS)
+    smtpPass: String(process.env.SMTP_PASS),
+    googleClientId: String(process.env.GOOGLE_CLIENT_ID),
 };
 
 module.exports = config;
