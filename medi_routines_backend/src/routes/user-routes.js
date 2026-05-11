@@ -84,4 +84,14 @@ router.post(
     userController.changePassword
 );
 
+// for signing in with google
+router.post(
+    "/google-signin",
+    [
+        check("idToken").not().isEmpty(),
+        check("timezone").not().isEmpty()
+    ],
+    userController.googleSignin
+);
+
 module.exports = router;

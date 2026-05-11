@@ -10,6 +10,10 @@ import SelectInput from '../input/SelectInput';
 import Button from '../input/Button';
 import SimpleLink from '../ui/SimpleLink';
 import toast from 'react-hot-toast';
+import { GoogleLogin } from '@react-oauth/google';
+import { useAppDispatch } from '../../store/hooks';
+import { setToken } from '../../store/slices';
+import googleAuthService from '../../services/googleAuthService';
 
 // this component will handle the signup process
 // fields will be:
@@ -39,6 +43,8 @@ function SignupForm()
 
     // navigate
     const navigate = useNavigate();
+
+    const appDispatch = useAppDispatch();
 
     // function to handle signup
     const onSubmit: SubmitHandler<SignupData> = useCallback((signupData)=>
@@ -180,6 +186,37 @@ function SignupForm()
                 </SimpleLink>
             </div>
 
+            {/* divider */}
+            <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                    <span className="bg-white px-2 text-gray-500">or</span>
+                </div>
+            </div>
+
+            {/* google sign in */}
+            <div className="flex justify-center">
+                <GoogleLogin
+                    onSuccess={async (credentialResponse) => {
+                        try {
+                            // get user's timezone, extra info not provided by google token but required by our app, so we get it from user's browser
+                            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                            const resp = await googleAuthService.googleSignin({
+                                idToken: credentialResponse.credential!,
+                                timezone
+                            });
+                            appDispatch(setToken(resp));
+                        } catch (err) {
+                            handleErrorsBeforeLogin(err as Error);
+                        }
+                    }}
+                    onError={() => {
+                        handleErrorsBeforeLogin(new Error('Google sign in failed'));
+                    }}
+                />
+            </div>
         </form>
 
     );

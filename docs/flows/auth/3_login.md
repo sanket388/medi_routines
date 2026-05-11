@@ -1,4 +1,4 @@
-# Login flow
+# Login flow using Email and Password
 
 ## Endpoint
 `POST /api/user/login`

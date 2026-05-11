@@ -5,7 +5,8 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    // password is not required because user can sign up with google
+    password: { type: String, required: false },
 
     // user's timezone
     timezone: { type: String, required: true },
@@ -17,7 +18,11 @@ const userSchema = new mongoose.Schema({
     // user's own defined medicines
     userDefinedMedicines: [{type: mongoose.Schema.Types.ObjectId, ref:'UserDefinedMedicine'}],
     fcmTokens: [{type:String}],  // for push notifications
-    isEmailVerified: { type: Boolean, required: true, default: false }
+    isEmailVerified: { type: Boolean, required: true, default: false },
+    // to support multiple auth providers
+    authProviders: [{type: String, enum: ["local", "google"]}],
+    // google id of the user, if signed up with google
+    googleId: { type: String, required: false, unique: true, sparse: true }
 });
 
 const User = mongoose.model('User', userSchema);

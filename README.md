@@ -93,12 +93,16 @@ FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/medi_routines_backend/firebase-adminsdk.json
 
 # frontend
 FRONTEND_URL=http://localhost:5173
+
+# sign in with google
+GOOGLE_CLIENT_ID=
 ```
 
 **Frontend** — create `medi_routines_frontend/.env.dev`:
 ```dotenv
 VITE_MEDI_ROUTINES_SERVER_URL=http://localhost:8000
 VITE_TIMEZONES_SERVER_URL=https://timeapi.io
+VITE_GOOGLE_CLIENT_ID=
 ```
 
 ### 2. Firebase service account key
